@@ -11,6 +11,7 @@ looked up here. Nothing is cleaned, joined or fitted at request time.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import joblib
@@ -100,7 +101,15 @@ def zone_events(zone: str, day: pd.Timestamp) -> pd.DataFrame:
 # API
 # ----------------------------------------------------------------------------------------------------
 app = FastAPI(title="Addis Ride Demand Forecast", version="1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["GET"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://addis-ride-forecast.vercel.app",
+    ],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/meta")
@@ -239,4 +248,5 @@ else:
 if __name__ == "__main__":
     import uvicorn
     print("\n  Addis Ride Demand Forecast  ->  http://localhost:8000\n")
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
