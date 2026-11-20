@@ -7,8 +7,10 @@ import {
 import type { EventWindow, Hour } from "@/lib/api";
 import { fmt } from "@/lib/api";
 
-const AXIS = { stroke: "rgba(148,163,184,.25)", tick: { fill: "#94a3b8", fontSize: 11 } };
-const GRID = <CartesianGrid stroke="rgba(148,163,184,.08)" vertical={false} />;
+const AXIS = (lightMode: boolean) => ({
+  stroke: lightMode ? "rgba(71,85,105,.28)" : "rgba(148,163,184,.25)",
+  tick: { fill: lightMode ? "#64748b" : "#94a3b8", fontSize: 11 },
+});
 
 function Tip({ active, payload }: { active?: boolean; payload?: { payload: Hour }[] }) {
   if (!active || !payload?.length) return null;
@@ -35,11 +37,12 @@ function Row({ dot, k, v }: { dot: string; k: string; v: string }) {
   );
 }
 
-export function ForecastChart({ hours, events, hour, onHover }: {
-  hours: Hour[]; events: EventWindow[]; hour: number; onHover: (h: number) => void;
+export function ForecastChart({ hours, events, hour, onHover, lightMode }: {
+  hours: Hour[]; events: EventWindow[]; hour: number; onHover: (h: number) => void; lightMode: boolean;
 }) {
   const data = hours.map((h) => ({ ...h, band: [h.lower_80, h.upper_80] as [number, number] }));
   const peak = hours.reduce((a, b) => (b.forecast > a.forecast ? b : a), hours[0]);
+  const axis = AXIS(lightMode);
   return (
     <ResponsiveContainer width="100%" height={330}>
       <ComposedChart data={data} margin={{ top: 22, right: 12, bottom: 0, left: -12 }}
@@ -53,24 +56,24 @@ export function ForecastChart({ hours, events, hour, onHover }: {
             <feGaussianBlur stdDeviation="4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
         </defs>
-        {GRID}
+        <CartesianGrid stroke={lightMode ? "rgba(71,85,105,.12)" : "rgba(148,163,184,.08)"} vertical={false} />
         {events.map((e, i) => (
           <ReferenceArea key={i} x1={e.start_hour} x2={Math.max(e.end_hour, e.start_hour + 0.6)} fill="#4c9bff" fillOpacity={0.12}
                          stroke="#4c9bff" strokeOpacity={0.35} strokeDasharray="3 3"
-                         label={{ value: `${e.icon} ${e.label}`, position: "insideTopLeft", fill: "#9cc5ff", fontSize: 11, fontWeight: 600 }} />
+                         label={{ value: `${e.icon} ${e.label}`, position: "insideTopLeft", fill: lightMode ? "#1d4ed8" : "#9cc5ff", fontSize: 11, fontWeight: 600 }} />
         ))}
-        <XAxis dataKey="hour" type="number" domain={[0, 23]} ticks={[0, 3, 6, 9, 12, 15, 18, 21]} tickFormatter={fmt.hour} {...AXIS} />
-        <YAxis {...AXIS} width={48} />
-        <Tooltip content={<Tip />} cursor={{ stroke: "rgba(255,255,255,.25)", strokeWidth: 1 }} />
+        <XAxis dataKey="hour" type="number" domain={[0, 23]} ticks={[0, 3, 6, 9, 12, 15, 18, 21]} tickFormatter={fmt.hour} {...axis} />
+        <YAxis {...axis} width={48} />
+        <Tooltip content={<Tip />} cursor={{ stroke: lightMode ? "rgba(15,23,42,.25)" : "rgba(255,255,255,.25)", strokeWidth: 1 }} />
         <Area dataKey="band" type="monotone" stroke="none" fill="url(#band)" isAnimationActive={false} />
         <Line dataKey="typical" type="monotone" isAnimationActive={false} stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={1.6} dot={false} />
         <Line dataKey="forecast" type="monotone" isAnimationActive={false} stroke="#ff7a45" strokeWidth={3} dot={false} filter="url(#glow)"
               activeDot={{ r: 6, fill: "#fff", stroke: "#ff7a45", strokeWidth: 3 }} />
-        <ReferenceLine x={hour} stroke="rgba(255,255,255,.35)" strokeDasharray="2 4" />
+        <ReferenceLine x={hour} stroke={lightMode ? "rgba(15,23,42,.35)" : "rgba(255,255,255,.35)"} strokeDasharray="2 4" />
         <Scatter data={[peak]} dataKey="forecast" fill="#fff" shape={(p: { cx?: number; cy?: number }) => (
           <g>
             <circle cx={p.cx} cy={p.cy} r={5} fill="#fff" stroke="#ff7a45" strokeWidth={3} />
-            <text x={(p.cx ?? 0) + (peak.hour >= 20 ? -8 : peak.hour <= 2 ? 8 : 0)} y={(p.cy ?? 0) - 12} textAnchor={peak.hour >= 20 ? "end" : peak.hour <= 2 ? "start" : "middle"} fill="#fff" fontSize={11} fontWeight={700}>Peak {peak.time}</text>
+            <text x={(p.cx ?? 0) + (peak.hour >= 20 ? -8 : peak.hour <= 2 ? 8 : 0)} y={(p.cy ?? 0) - 12} textAnchor={peak.hour >= 20 ? "end" : peak.hour <= 2 ? "start" : "middle"} fill={lightMode ? "#1e293b" : "#fff"} fontSize={11} fontWeight={700}>Peak {peak.time}</text>
           </g>
         )} />
       </ComposedChart>
@@ -78,18 +81,19 @@ export function ForecastChart({ hours, events, hour, onHover }: {
   );
 }
 
-export function DriverChart({ hours, hour }: { hours: Hour[]; hour: number }) {
+export function DriverChart({ hours, hour, lightMode }: { hours: Hour[]; hour: number; lightMode: boolean }) {
   const cut = [...hours].map((h) => h.drivers).sort((a, b) => a - b)[Math.floor(hours.length * 0.8)];
+  const axis = AXIS(lightMode);
   return (
     <ResponsiveContainer width="100%" height={330}>
       <ComposedChart data={hours} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-        {GRID}
-        <XAxis dataKey="hour" type="number" domain={[-0.5, 23.5]} ticks={[0, 6, 12, 18, 23]} tickFormatter={fmt.hour} {...AXIS} />
-        <YAxis {...AXIS} width={44} />
-        <Tooltip content={<Tip />} cursor={{ fill: "rgba(255,255,255,.04)" }} />
+        <CartesianGrid stroke={lightMode ? "rgba(71,85,105,.12)" : "rgba(148,163,184,.08)"} vertical={false} />
+        <XAxis dataKey="hour" type="number" domain={[-0.5, 23.5]} ticks={[0, 6, 12, 18, 23]} tickFormatter={fmt.hour} {...axis} />
+        <YAxis {...axis} width={44} />
+        <Tooltip content={<Tip />} cursor={{ fill: lightMode ? "rgba(15,23,42,.04)" : "rgba(255,255,255,.04)" }} />
         <Bar dataKey="drivers" isAnimationActive={false} radius={[5, 5, 2, 2]} barSize={13}>
           {hours.map((h) => (
-            <Cell key={h.hour} fill={h.hour === hour ? "#ffffff" : h.drivers >= cut ? "#ff7a45" : "#2c3e63"} />
+            <Cell key={h.hour} fill={h.hour === hour ? (lightMode ? "#64748b" : "#ffffff") : h.drivers >= cut ? "#ff7a45" : lightMode ? "#93a4bb" : "#2c3e63"} />
           ))}
         </Bar>
         <Scatter dataKey="drivers_safe" shape={(p: { cx?: number; cy?: number }) => (
