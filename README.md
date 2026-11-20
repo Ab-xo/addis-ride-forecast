@@ -1,42 +1,140 @@
 # Addis Ababa Ride Demand Forecast
 
-**Team Addis Ride Dev** · Qiyas AI Hackathon #2 · Addis Ababa University
+**Hourly ride-hailing demand forecasts and driver planning for 12 Addis Ababa zones, 1–14 November 2025**
 
-Forecast hourly ride-hailing demand across 12 Addis Ababa zones for **1–14 November 2025**. The project combines historical trips with prepared weather, event, calendar, and zone features, then serves the forecasts through an interactive dashboard.
+Team **Addis Ride Dev** · Qiyas AI Hackathon #2 · Addis Ababa University
 
 <p align="center">
   <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white">
-  <img alt="LightGBM" src="https://img.shields.io/badge/Model-LightGBM-2F6F4E">
-  <img alt="FastAPI" src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white">
-  <img alt="Next.js" src="https://img.shields.io/badge/UI-Next.js-111111?logo=nextdotjs&logoColor=white">
+  <img alt="LightGBM Poisson model" src="https://img.shields.io/badge/Model-LightGBM%20%28Poisson%29-2F6F4E">
+  <img alt="Validation RMSE 8.12" src="https://img.shields.io/badge/Validation%20RMSE-8.12-2F6F4E">
+  <img alt="FastAPI and Next.js dashboard" src="https://img.shields.io/badge/Demo-FastAPI%20%2B%20Next.js-111827">
 </p>
 
-## 📊 Dashboard
+## Contents
 
-![Addis Ride dashboard showing demand KPIs, the zone map, and selected-zone context and events](docs/dashboard-overview.png)
+- [Project overview](#project-overview)
+- [Dashboard preview](#dashboard-preview)
+- [Dashboard guide](#dashboard-guide)
+- [Model and evaluation](#model-and-evaluation)
+- [Data preparation and findings](#data-preparation-and-findings)
+- [Run the dashboard](#run-the-dashboard)
+- [API reference](#api-reference)
+- [Reproduce the analysis](#reproduce-the-analysis)
+- [Project deliverables](#project-deliverables)
+- [Repository map](#repository-map)
+- [Team and data](#team-and-data)
 
-The dashboard combines zone-level forecasts, driver planning, expected fares, weather inputs, and confirmed events. Dates are limited to the model's prepared **1–14 November 2025** forecast horizon.
+## Project overview
 
-## ✨ Highlights
+Ride demand changes throughout the day and differs between Addis Ababa neighborhoods. This project turns ten months of hourly trip history, weather observations and forecasts, and an event calendar into a fixed two-week forecast. The dashboard then translates demand into a practical view of expected trips, driver staffing, and fares.
 
-- **Forecast quality:** LightGBM with a Poisson objective; validation RMSE **8.12 trips per zone-hour**.
-- **12-zone view:** Interactive Addis Ababa map and daily zone ranking.
-- **Operations view:** Hourly forecasts, peak demand, driver estimates, shift summaries, and expected gross fares.
-- **Forecast context:** Weather inputs and confirmed events for the selected zone or citywide.
-- **Exports and accessibility:** One-page PDF forecast brief, hourly CSV, and light/dark themes.
-- **Uncertainty:** 80% and 90% prediction intervals for forecast hours.
+| At a glance | Details |
+|---|---|
+| Forecast period | 1–14 November 2025 |
+| Coverage | 12 zones × 14 days × 24 hours = **4,032 zone-hours** |
+| Training history | 1 January–31 October 2025 |
+| Model | LightGBM with a Poisson objective and **40 forecast-time features** |
+| Best baseline | Seasonal-naive profile from the previous four weeks |
+| Application | FastAPI API with a prebuilt Next.js dashboard |
+| Data | Synthetic hackathon data |
 
-## 🚀 Quick start
+## Dashboard preview
 
-Requirements: **Python 3.10+**. The committed web build is served by FastAPI, so Node.js is not required to run the dashboard.
+![Addis Ride overview showing forecast KPIs, the 12-zone map, selected-zone context and events, and the zone leaderboard](docs/dashboard-overview.png)
+
+The overview shown above is the running dashboard, not a mockup. It displays the selected zone and date, city demand by hour, the forecast, and the matching weather and event context.
+
+## Dashboard guide
+
+The date selector covers **only 1–14 November 2025**. Choosing a date selects a row from the prepared forecast horizon; users do not enter weather or event values, and the model does not extrapolate to arbitrary dates.
+
+### Overview
+
+- **Daily KPIs:** expected trips, peak hour, drivers at peak, and estimated gross fares.
+- **Zone map:** choose a zone by clicking its marker; use the play control or hour slider to inspect city demand throughout the day.
+- **Selected-zone panel:** shows the zone type, average fare, forecast at the selected hour, and **Context & Events**.
+- **Context & Events:** displays the selected zone's prepared temperature/rain inputs and confirmed events affecting that zone or the whole city. It indicates dry conditions or no listed events when applicable.
+- **Zone leaderboard:** compares daily forecasts across the 12 zones with their usual weekday demand.
+- **Sidebar:** navigate between views, change zones, and see each zone's driver count for the selected hour.
+
+### Forecast
+
+The 24-hour curve shows the model forecast, its 80% range, the zone's usual day, and any event windows. Hovering over the curve updates the selected hour used elsewhere in the dashboard.
+
+### Driver Plan
+
+Hourly driver demand is calculated as `ceil(forecast trips ÷ 1.3 trips per driver-hour)`. The 80% upper range is used for a higher-coverage staffing number. Shift cards summarize night, morning, afternoon, and evening demand.
+
+### Hourly Data
+
+The table exposes the values behind the charts: forecast, 80% range, usual demand, drivers, higher-coverage staffing, fares, temperature, rain, and event-window status. Gross fares are estimated as forecast trips multiplied by the zone's historical average fare; fare is not a demand-model input. Export the table as CSV, or use **Export PDF** for a one-page forecast brief.
+
+The theme control switches between light and dark mode. Weather shown in the dashboard is a **model input** from the prepared forecast data, not a weather prediction generated by the demand model.
+
+## Model and evaluation
+
+The current dashboard reads its model name, feature count, and validation statistics from the bundled model metadata.
+
+| Measure | Current dashboard model |
+|---|---:|
+| Validation RMSE (18–31 October 2025) | **8.12** trips per zone-hour |
+| Validation MAE | **5.61** trips per zone-hour |
+| Five-fold rolling-origin RMSE | **8.68** |
+| Seasonal-naive baseline RMSE | 9.94 |
+| Improvement over that baseline | **18.3% lower RMSE** |
+
+The holdout is chronological, and the test file is not used to calculate these validation scores. The model was trained on data from January through October 2025.
+
+### Feature groups
+
+| Group | Count | Examples |
+|---|---:|---|
+| Calendar and trend | 9 | Hour, weekday, weekend, month, payday, holiday, school-break, and trend flags |
+| Zone | 2 | Zone and zone type |
+| Weather | 6 | Temperature, hourly and recent rain, rain class, humidity, and wind |
+| Events | 12 | Event type, before/during/after phase, attendance, and time to/from major events |
+| Demand history | 6 | 14/21/28-day lags and recent zone-hour profiles |
+| Holiday periods | 5 | Holiday eve, holiday period, day after, religious and national holiday flags |
+| **Total** | **40** | All available at forecast time |
+
+Operational values recorded during a trip hour—such as `active_drivers`, `avg_wait_min`, and `avg_fare_birr`—are not model inputs. The shortest demand lags are at least 14 days old, so the model does not rely on future observations from the forecast fortnight.
+
+The forecast includes an 80% range in the dashboard; the prediction-interval submission also includes 80% and 90% ranges. See the [uncertainty report](reports/D_stretch_uncertainty.md) for calibration details.
+
+> **Model version note:** the figures above describe the current 40-feature model bundled with the dashboard. The detailed comparison tables in the [model evaluation report](reports/D_model_evaluation.md) document an earlier feature experiment and may show slightly different scores.
+
+## Data preparation and findings
+
+The pipeline standardizes three source tables—trips, weather, and events—then joins them into a zone-hour dataset. The cleaning log records **28 data issues** and the treatment for each.
+
+### Preparation steps
+
+1. **Trips:** normalize zone names and timestamps; resolve duplicate zone-hours; handle missing targets, sentinels, outages, prelaunch hours, and exported counts that were inflated eightfold.
+2. **Weather:** convert timestamps from UTC to Addis Ababa time (EAT, UTC+3); correct a Fahrenheit block, remove `-9999` rain sentinels, and fill gaps before joining.
+3. **Events:** normalize event types, zones, statuses, and date formats; deduplicate events, exclude cancellations from forecast features, and repair missing or invalid event end times.
+4. **Feature table:** preserve one row per zone-hour and add calendar, zone, weather, event-window, holiday-period, and historical-demand features.
+
+### Findings from the analysis
+
+- **Timezone alignment matters:** shifting weather timestamps by three hours raised the rain–demand correlation from **0.019 to 0.271**. The unshifted weather clock obscured most of the rain signal.
+- **Rain effects vary by zone:** matched rainy hours were about 28–30% busier in residential, business, transport-hub, and nightlife zones, while demand in open-air Merkato was about 20% lower.
+- **Events have distinct timing:** for confirmed football matches in Kazanchis, demand was elevated before kick-off, during the match, and especially in the two hours after it ended.
+- **Demand grew over the training period:** weekly city-wide trips rose about 40% from the beginning to the end of the observed year, supporting recent-level and trend features.
+
+See the [cleaning and integration report](reports/A_cleaning_and_integration.md) and [analysis report](reports/B_analysis_report.md) for the supporting tables and methods.
+
+## Run the dashboard
+
+Requirements: **Python 3.10 or newer**. The compiled Next.js site is included in `app/web/out/`, so Node.js is not needed to run the dashboard.
 
 ```bash
 git clone https://github.com/Ab-xo/addis-ride-forecast.git
 cd addis-ride-forecast
 
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
 # macOS/Linux:
 # source .venv/bin/activate
 
@@ -44,50 +142,55 @@ python -m pip install -r requirements.txt
 python app/app.py
 ```
 
-Open **<http://localhost:8000>**. To start on a specific zone and forecast date, use a link such as:
+Open <http://localhost:8000>. To open a particular zone and date directly:
 
 ```text
 http://localhost:8000/?zone=Kazanchis&date=2025-11-02
 ```
 
-The date selector uses the model's fixed forecast horizon; users do not supply weather or event values.
+Dates outside the supported horizon receive a clear out-of-range message.
 
-### Develop the web interface (optional)
+### Develop the web interface
 
-Node.js 20+ is only needed when changing the Next.js interface:
+Node.js 20+ is only required to work on the Next.js source. Keep the FastAPI server running for its API:
 
 ```bash
 cd app/web
 npm install
-npm run dev
+npm run dev       # frontend at http://localhost:3000
+npm run build     # refreshes the static build in app/web/out/
 ```
 
-Keep `python app/app.py` running for the API, then open <http://localhost:3000>. Run `npm run build` to refresh the static build served from `app/web/out/`.
+## API reference
 
-## 📈 Model and evaluation
+The FastAPI application scores the complete prepared fortnight at startup. Requests then look up the precomputed results.
 
-| Metric | Result |
-|---|---:|
-| Held-out RMSE (18–31 October 2025) | **8.12** trips per zone-hour |
-| Held-out MAE | **5.61** trips per zone-hour |
-| Five-fold rolling-origin RMSE | **8.68 ± 0.79** |
-| Seasonal-naive baseline RMSE | 9.94 |
-| Forecast-time features | 40 |
+| Endpoint | Returns |
+|---|---|
+| `GET /api/meta` | Model metadata, forecast dates, zone details, and driver-rate assumptions |
+| `GET /api/city?date=YYYY-MM-DD` | Hourly city and zone forecasts for the map and leaderboard |
+| `GET /api/forecast?zone=Kazanchis&date=2025-11-02` | A zone's 24 hourly forecasts, ranges, KPIs, weather inputs, and confirmed events |
 
-Validation uses chronological splits; the test file is not used to calculate these scores. The final model improves RMSE by about **18%** over the seasonal-naive baseline. Weather and events are forecast-time inputs, alongside calendar, zone, holiday-window, and historical-demand features. The dashboard displays the matching prepared inputs and confirmed event windows for the selected forecast date.
+Example:
 
-Prediction intervals were calibrated on 4–17 October and evaluated on 18–31 October: empirical coverage was **79.8%** for the nominal 80% interval and **89.6%** for the nominal 90% interval.
+```bash
+curl "http://localhost:8000/api/forecast?zone=Kazanchis&date=2025-11-02"
+```
 
-Full comparisons and methodology:
+## Reproduce the analysis
 
-- [Model evaluation](reports/D_model_evaluation.md)
-- [Uncertainty analysis](reports/D_stretch_uncertainty.md)
-- [Cleaning and integration](reports/A_cleaning_and_integration.md)
-- [Data analysis](reports/B_analysis_report.md)
+Install the pinned dependencies, then run the notebooks in order from the repository root. Each notebook prepares outputs used by the next step.
 
-## 🔁 Reproduce the results
+| Step | Notebook or command | Main output |
+|---|---|---|
+| A | `notebooks/01_cleaning_and_integration.ipynb` | Cleaning log, timezone proof, joined tables, integrity checks, and data dictionary |
+| B | `notebooks/02_analysis_report.ipynb` | Exploratory analysis and findings |
+| C | `notebooks/03_visualizations.ipynb` | Figures and captions |
+| D | `notebooks/04_modeling_and_evaluation.ipynb` | Baselines, model experiments, validation, and error analysis |
+| Forecasts | `python -m src.predict` | Submission forecasts and prediction intervals |
+| Dashboard data | `python -m src.app_assets` | Bundled model and lookup assets for the dashboard |
 
-After installing `requirements.txt`, execute the notebooks in order from the repository root:
+Execute the notebooks:
 
 ```bash
 cd notebooks
@@ -101,25 +204,52 @@ python -m src.predict
 python -m src.app_assets
 ```
 
-The notebooks clean and integrate the source tables, perform analysis, create figures, and evaluate models. The scripts generate predictions and refresh the lookup assets bundled with the demo. Random seeds and input paths are configured in the project for reproducibility.
+The pipeline uses relative paths and a fixed random seed (`42`). Raw source files in `data/raw/` are retained unchanged.
 
-## 🧭 Project layout
+## Project deliverables
 
-| Path | Purpose |
-|---|---|
-| `app/app.py` | FastAPI forecast API and static dashboard server |
-| `app/web/` | Next.js dashboard source and built static site |
-| `app/assets/` | Model and lookup data used by the dashboard |
-| `src/` | Data cleaning, features, training, prediction, and app assets |
-| `notebooks/` | Cleaning, analysis, visualizations, and model evaluation |
-| `data/raw/` | Original synthetic training data |
-| `data/processed/` | Cleaned and integrated datasets |
-| `models/` | Final trained model and parameters |
-| `reports/` | Evaluation, analysis, cleaning, and uncertainty reports |
-| `submission/` | Forecast submission and prediction intervals |
-| `figures/` | Generated figures and captions |
+| Item | Description | Location |
+|---|---|---|
+| Forecast submission | 4,032 predictions in the original row order | [`submission/team_teamdev_submission.csv`](submission/team_teamdev_submission.csv) |
+| A — Data preparation | Cleaning log, integration proof, master tables, and data dictionary | [`reports/A_cleaning_and_integration.md`](reports/A_cleaning_and_integration.md), [`data/processed/`](data/processed) |
+| B — Analysis | Demand, weather, calendar, and event analysis | [`reports/B_analysis_report.md`](reports/B_analysis_report.md) |
+| C — Visualizations | 12 figures and captions | [`figures/`](figures), [`figures/figure_captions.md`](figures/figure_captions.md) |
+| D — Modeling | Model experiments, validation, and feature analysis | [`reports/D_model_evaluation.md`](reports/D_model_evaluation.md), [`models/`](models) |
+| E — Dashboard | FastAPI service and Next.js interface | [`app/app.py`](app/app.py), [`app/web/`](app/web) |
+| F — Presentation | Hackathon presentation slides | [`presentation/team_teamdev_slides.pptx`](presentation/team_teamdev_slides.pptx) |
+| G — Reproducibility | Setup, workflow, and repository guide | [`requirements.txt`](requirements.txt), this README |
+| Stretch — Uncertainty | Prediction intervals and calibration notes | [`reports/D_stretch_uncertainty.md`](reports/D_stretch_uncertainty.md), [`submission/team_teamdev_prediction_intervals.csv`](submission/team_teamdev_prediction_intervals.csv) |
 
-## 👥 Team
+## Repository map
+
+```text
+addis-ride-forecast/
+├── README.md
+├── requirements.txt
+├── data/
+│   ├── raw/                  original synthetic CSV inputs
+│   └── processed/            cleaned tables and model-ready datasets
+├── notebooks/                cleaning → analysis → figures → modeling
+├── src/
+│   ├── cleaning.py           input cleanup and standardization
+│   ├── features.py           joins, feature engineering, integrity checks
+│   ├── train.py              baselines, models, and validation
+│   ├── predict.py            submission forecasts and intervals
+│   └── app_assets.py         dashboard model and lookup assets
+├── models/                   final model and parameters
+├── submission/               point forecasts and prediction intervals
+├── reports/                  cleaning, analysis, model, and uncertainty reports
+├── figures/                  generated charts and captions
+├── app/
+│   ├── app.py                FastAPI API and static-site server
+│   ├── assets/               model and forecast lookup tables
+│   └── web/                  Next.js source and built site
+├── docs/
+│   └── dashboard-overview.png
+└── presentation/             team slides
+```
+
+## Team and data
 
 | Name | Student ID |
 |---|---|
@@ -130,6 +260,4 @@ The notebooks clean and integrate the source tables, perform analysis, create fi
 | Feven Abebe | qiyas-2026-003641 |
 | Surafel Solomon | qiyas-2026-007128 |
 
-## ℹ️ Data and scope
-
-All project data is synthetic and was supplied for training by the hackathon organizers. The dashboard scores the prepared model inputs for the original November 1–14, 2025 horizon; it does not generate forecasts for arbitrary dates.
+All data was supplied by the hackathon organizers for training purposes and is synthetic. The forecast is a decision-support estimate for the specified 14-day period; unlisted events, unusual weather, and future changes in demand can still affect actual trips.
