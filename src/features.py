@@ -16,8 +16,11 @@ from src import cleaning, config
 # --------------------------------------------------------------------------------------
 CALENDAR_FEATURES = ["hour", "dow", "is_weekend", "month", "day_of_month", "is_payday_window",
                      "is_public_holiday", "is_school_break", "trend_days"]
-# Added in D8 after the error analysis found big misses on the eve of holidays.
-D8_FEATURES = ["is_holiday_eve"]
+# Holiday-period features combine an eve, the full confirmed date window and the following day.
+# Named-family flags are pooled categories, so rare individual holidays remain learnable without
+# creating a separate coefficient for every holiday name.
+D8_FEATURES = ["is_holiday_eve", "is_holiday_period", "is_day_after_public_holiday",
+               "is_religious_holiday", "is_national_holiday"]
 ZONE_FEATURES = ["zone_code", "zone_type_code"]
 WEATHER_FEATURES = ["temp_c", "rain_mm", "rain_3h", "rain_class", "humidity_pct", "wind_kmh"]
 EVENT_FEATURES = ["ev_football_window", "ev_concert_window", "ev_conference_window",
@@ -113,17 +116,62 @@ def event_hour_table(events: pd.DataFrame) -> pd.DataFrame:
 
 
 def _holiday_eves(conf_hours: pd.DataFrame) -> pd.DataFrame:
-    """Zone-hours on the calendar day before a confirmed public holiday (shopping, travel, Demera)."""
+    """Zone-hours on the calendar day before a confirmed public holiday."""
+    return _holiday_offset_hours(conf_hours, -1)
+
+
+def _holiday_offset_hours(conf_hours: pd.DataFrame, offset_days: int) -> pd.DataFrame:
+    """Citywide zone-hours offset from confirmed public-holiday dates."""
     hol = conf_hours[conf_hours["event_type"] == "public_holiday"]
     days = hol["pickup_hour"].dt.floor("D").drop_duplicates()
-    eve_hours = pd.DataFrame({"pickup_hour": [d - pd.Timedelta(days=1) + pd.Timedelta(hours=h)
-                                              for d in days for h in range(24)]})
+    offset_hours = pd.DataFrame({
+        "pickup_hour": [d + pd.Timedelta(days=offset_days) + pd.Timedelta(hours=h)
+                        for d in days for h in range(24)]
+    })
     zones = pd.DataFrame({"zone": config.ZONES})
-    eve = zones.merge(eve_hours, how="cross")
-    # The eve is not itself a holiday (e.g. two holidays in a row).
+    shifted = zones.merge(offset_hours, how="cross")
     hol_keys = set(zip(hol["zone"], hol["pickup_hour"]))
-    keep = [k not in hol_keys for k in zip(eve["zone"], eve["pickup_hour"])]
-    return eve[keep]
+    keep = [k not in hol_keys for k in zip(shifted["zone"], shifted["pickup_hour"])]
+    return shifted[keep]
+
+
+def _holiday_after(conf_hours: pd.DataFrame) -> pd.DataFrame:
+    """Zone-hours on the calendar day after a confirmed public holiday."""
+    return _holiday_offset_hours(conf_hours, 1)
+
+
+def _holiday_period(conf_hours: pd.DataFrame) -> pd.DataFrame:
+    """Zone-hours from the eve through the day after any confirmed public holiday."""
+    return pd.concat([
+        _holiday_eves(conf_hours),
+        conf_hours[conf_hours["event_type"] == "public_holiday"][["zone", "pickup_hour"]],
+        _holiday_after(conf_hours),
+    ], ignore_index=True).drop_duplicates()
+
+
+RELIGIOUS_HOLIDAY_TERMS = (
+    "christmas", "genna", "easter", "fasika", "good friday", "eid", "mawlid",
+    "timkat", "epiphany", "meskel",
+)
+NATIONAL_HOLIDAY_TERMS = (
+    "victory", "patriots", "labour", "labor", "derg", "adwa", "new year",
+)
+
+
+def _named_holiday_family(conf_hours: pd.DataFrame, events: pd.DataFrame,
+                          family_terms: tuple[str, ...]) -> pd.DataFrame:
+    """Return citywide zone-hours whose holiday name belongs to a pooled family."""
+    holiday = conf_hours[conf_hours["event_type"] == "public_holiday"][
+        ["event_id", "zone", "pickup_hour"]
+    ]
+    if "event_name" not in events.columns:
+        return holiday.iloc[0:0][["zone", "pickup_hour"]]
+
+    names = events[["event_id", "event_name"]].drop_duplicates()
+    holiday = holiday.merge(names, on="event_id", how="left")
+    name = holiday["event_name"].fillna("").str.lower()
+    matched = name.apply(lambda value: any(term in value for term in family_terms))
+    return holiday.loc[matched, ["zone", "pickup_hour"]].drop_duplicates()
 
 
 def aggregate_event_features(keys: pd.DataFrame, eh: pd.DataFrame,
@@ -135,11 +183,15 @@ def aggregate_event_features(keys: pd.DataFrame, eh: pd.DataFrame,
     venue = conf[conf["event_type"].isin(VENUE_EVENT_TYPES)]
 
     def flag(df, name):
+        if df.empty:
+            index = pd.MultiIndex.from_arrays([[], []], names=["zone", "pickup_hour"])
+            return pd.Series(index=index, dtype=int, name=name)
         s = df.groupby(["zone", "pickup_hour"]).size().rename(name)
         return (s > 0).astype(int)
 
     parts = [
         flag(conf[conf["event_type"] == "public_holiday"], "is_public_holiday"),
+        flag(_holiday_after(conf), "is_day_after_public_holiday"),
         flag(conf[conf["event_type"] == "school_break"], "is_school_break"),
         flag(conf[conf["event_type"] == "football_match"], "ev_football_window"),
         flag(conf[conf["event_type"] == "concert"], "ev_concert_window"),
@@ -147,6 +199,11 @@ def aggregate_event_features(keys: pd.DataFrame, eh: pd.DataFrame,
         flag(conf[conf["event_type"] == "exhibition"], "ev_exhibition_window"),
         flag(conf[conf["event_type"] == "road_closure"], "ev_road_closure"),
         flag(conf[conf["event_type"] == "sports_run"], "ev_sports_run_window"),
+        flag(_holiday_period(conf), "is_holiday_period"),
+        flag(_named_holiday_family(conf, events, RELIGIOUS_HOLIDAY_TERMS),
+             "is_religious_holiday"),
+        flag(_named_holiday_family(conf, events, NATIONAL_HOLIDAY_TERMS),
+             "is_national_holiday"),
         flag(venue[venue["phase"] == "pre"], "ev_pre"),
         flag(venue[venue["phase"] == "during"], "ev_during"),
         flag(venue[venue["phase"] == "post"], "ev_post"),

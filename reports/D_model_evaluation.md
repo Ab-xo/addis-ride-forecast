@@ -17,16 +17,16 @@ The mean predictor ignores zone and hour and is useless (RMSE 27.5). The seasona
 
 ## D2 Model comparison
 
-Six model families on the same split. The machine-learning models all get the same 35 features (the D8 feature is added later). ARIMA is the classical time-series model: one per zone, fitted on that zone's last 8 weeks of hourly trips (log scale) as daily and weekly Fourier seasonality plus ARIMA(2,0,1) on the remainder, forecasting the whole 14 days ahead; it sees no weather or events. `rolling_rmse_mean` is the mean over the 5 rolling-origin folds (D3); `fit_seconds` is one fit plus prediction.
+Six model families on the same split. The machine-learning models all use the same 35-feature base set; the final model adds two holiday-window flags, including the day-after-public-holiday feature. ARIMA is the classical time-series model: one per zone, fitted on that zone's last 8 weeks of hourly trips (log scale) as daily and weekly Fourier seasonality plus ARIMA(2,0,1) on the remainder, forecasting the whole 14 days ahead; it sees no weather or events. `rolling_rmse_mean` is the mean over the 5 rolling-origin folds (D3); `fit_seconds` is one fit plus prediction.
 
 | model                                                                             |   rmse |   mae |   rolling_rmse_mean |   fit_seconds |   rmse_vs_seasonal_naive_pct |
 |:----------------------------------------------------------------------------------|-------:|------:|--------------------:|--------------:|-----------------------------:|
-| LightGBM (Poisson objective)                                                      |   8.07 |  5.58 |                8.77 |          3.92 |                       -18.84 |
-| HistGradientBoosting (log target)                                                 |   8.20 |  5.65 |                8.99 |          1.88 |                       -17.53 |
-| Gradient boosting, scikit-learn classic (log target)                              |   8.63 |  5.92 |                9.16 |         86.67 |                       -13.20 |
-| Random forest (log target)                                                        |   8.79 |  5.97 |                9.60 |         26.60 |                       -11.63 |
-| ARIMA(2,0,1) on daily/weekly Fourier seasonality, one per zone (time series only) |  10.41 |  6.86 |               11.52 |          5.29 |                         4.72 |
-| Ridge (linear, log target, one-hot zone/hour/weekday)                             |  12.99 |  7.80 |               13.95 |          0.49 |                        30.61 |
+| LightGBM (Poisson objective)                                                      |   8.07 |  5.58 |                8.77 |          8.91 |                       -18.84 |
+| HistGradientBoosting (log target)                                                 |   8.20 |  5.65 |                8.99 |          7.37 |                       -17.53 |
+| Gradient boosting, scikit-learn classic (log target)                              |   8.63 |  5.92 |                9.16 |        222.54 |                       -13.20 |
+| Random forest (log target)                                                        |   8.79 |  5.97 |                9.60 |         68.91 |                       -11.63 |
+| ARIMA(2,0,1) on daily/weekly Fourier seasonality, one per zone (time series only) |  10.41 |  6.86 |               11.52 |         37.46 |                         4.72 |
+| Ridge (linear, log target, one-hot zone/hour/weekday)                             |  12.99 |  7.80 |               13.95 |          1.65 |                        30.61 |
 
 **Winner: LightGBM (Poisson objective)** (RMSE 8.07, 19% better than the 4-week seasonal naive). The three gradient-boosting models (LightGBM 8.07, HistGradientBoosting 8.20, classic gradient boosting 8.63) lead, ahead of the random forest and the linear model: demand is driven by interactions (zone x hour x weekday, rain x zone type, event phase x zone) that trees find automatically and a linear model cannot. **ARIMA** (10.41; rolling 11.52 vs seasonal naive 11.48) does no better than the seasonal naive: over a 14-day horizon its short-memory ARIMA part fades to the smooth seasonal curve within hours, and it cannot see rain, events or holidays — the features that explain the departures from the usual weekly shape. We pick LightGBM because it is the most accurate, trains in seconds, handles missing lags natively and its Poisson objective matches count data.
 
@@ -84,6 +84,7 @@ LightGBM: RMSE **8.77 ± 0.89** (mean ± sd over 5 folds); seasonal naive 11.48 
 | profile_zone_dow_hour          | lag / trend | yes                      | yes    | >= 14 days old, so known on 31 Oct for every hour to 14 Nov            |
 | zone_level_2to4w               | lag / trend | yes                      | yes    | >= 14 days old, so known on 31 Oct for every hour to 14 Nov            |
 | is_holiday_eve                 | calendar    | yes                      | yes    | known from the calendar / event schedule                               |
+| is_day_after_public_holiday    | calendar    | yes                      | yes    | known from the calendar / event schedule                               |
 | active_drivers                 | excluded    | no                       | no     | only observed after the hour happens; drivers follow demand (r = 0.99) |
 | avg_wait_min                   | excluded    | no                       | no     | consequence of demand vs supply in that hour                           |
 | avg_fare_birr                  | excluded    | no                       | no     | only observed after the trips happen                                   |
@@ -233,39 +234,39 @@ Change: D7 showed the largest misses on holiday eves, so we added `is_holiday_ev
 | model                          |   rolling_rmse_mean |   rolling_mae_mean |   rmse_on_holiday_eves |   main_split_rmse |
 |:-------------------------------|--------------------:|-------------------:|-----------------------:|------------------:|
 | tuned, before D8               |               8.733 |              5.735 |                 16.894 |             8.138 |
-| tuned + is_holiday_eve (final) |               8.680 |              5.728 |                 16.111 |             8.091 |
+| tuned + is_holiday_eve (final) |               8.685 |              5.726 |                 16.102 |             8.118 |
 
 | cut        |   before |   after |
 |:-----------|---------:|--------:|
-| 2025-08-23 |    8.185 |   8.185 |
-| 2025-09-06 |    9.411 |   9.237 |
-| 2025-09-20 |    9.873 |   9.813 |
-| 2025-10-04 |    8.057 |   8.075 |
-| 2025-10-18 |    8.138 |   8.091 |
+| 2025-08-23 |    8.185 |   8.152 |
+| 2025-09-06 |    9.411 |   9.287 |
+| 2025-09-20 |    9.873 |   9.771 |
+| 2025-10-04 |    8.057 |   8.095 |
+| 2025-10-18 |    8.138 |   8.118 |
 
-It helped where it should: RMSE on holiday-eve hours fell from 16.9 to 16.1, and the rolling RMSE moved by -0.053 overall. The main-split fortnight (18–31 Oct) has no holiday eve, so its score moves only by noise (8.138 -> 8.091). We keep the feature: it costs nothing and protects the eves of future holidays. The two-events-at-once misses remain (too few examples to learn from).
+It helped where it should: RMSE on holiday-eve hours fell from 16.9 to 16.1, and the rolling RMSE moved by -0.048 overall. The main-split fortnight (18–31 Oct) has no holiday eve, so its score moves only by noise (8.138 -> 8.118). We keep the feature: it costs nothing and protects the eves of future holidays. The two-events-at-once misses remain (too few examples to learn from).
 
 
 ## D9 Plain-language metric
 
 | metric   |   trips per zone-hour |   % of mean demand |   drivers (÷ 1.3) |
 |:---------|----------------------:|-------------------:|------------------:|
-| RMSE     |                   8.1 |               24.2 |               6.2 |
-| MAE      |                   5.6 |               16.7 |               4.3 |
+| RMSE     |                   8.1 |               24.3 |               6.2 |
+| MAE      |                   5.6 |               16.8 |               4.3 |
 
 **For an operations manager:** in a typical zone and hour (about 33 trip requests), our forecast is off by about **5.6 trips** on average (MAE, 17% of demand); bigger misses pull the root-mean-square error up to 8.1 trips (24%). With drivers completing about 1.3 trips per hour (history median 1.31), that is roughly **4 drivers too many or too few per zone per hour** on a normal hour, and around 6 when the occasional big misses (holiday eves, surges) are weighted in (RMSE). The seasonal-naive rule of thumb would be off by 6.6 trips (5 drivers).
 
 
 ## Final model
 
-LightGBM (Poisson), tuned parameters, 36 features, refit on all 83,104 observed zone-hours of 1 Jan – 31 Oct and saved to `models/final_model.joblib` (with its feature list, parameters and validation scores). **Validation score: RMSE 8.09, MAE 5.60 on 18–31 Oct; rolling-origin RMSE 8.68 ± 0.80** (seasonal naive: 9.94 on 18–31 Oct, 11.48 rolling). Uses weather (6) and event (12 + holiday flags) features (Rule 5), only forecast-time features (Rule 6), chronological validation only (Rule 7) and nothing fitted on test (Rule 8).
+LightGBM (Poisson), tuned parameters, 37 features, refit on all 83,104 observed zone-hours of 1 Jan – 31 Oct and saved to `models/final_model.joblib` (with its feature list, parameters and validation scores). **Validation score: RMSE 8.12, MAE 5.61 on 18–31 Oct; rolling-origin RMSE 8.68 ± 0.79** (seasonal naive: 9.94 on 18–31 Oct, 11.48 rolling). Uses weather (6) and event (12 + holiday flags) features (Rule 5), only forecast-time features (Rule 6), chronological validation only (Rule 7) and nothing fitted on test (Rule 8).
 
 
 ## Figures
 
 ![fig10_model_comparison.png](../figures/fig10_model_comparison.png)
 
-Validation RMSE on 18-31 Oct for the baselines (mean, seasonal naive, moving average), six model families (ARIMA, ridge, random forest and three gradient-boosting variants) and the tuned/final LightGBM (bars, from zero), with the rolling-origin mean ± sd over 5 folds (diamonds). The final model (8.09) beats the best baseline (9.94) by 19% and does so in every fold. So what: boosted trees on well-joined features are the right tool here; tuning adds little.
+Validation RMSE on 18-31 Oct for the baselines (mean, seasonal naive, moving average), six model families (ARIMA, ridge, random forest and three gradient-boosting variants) and the tuned/final LightGBM (bars, from zero), with the rolling-origin mean ± sd over 5 folds (diamonds). The final model (8.12) beats the best baseline (9.94) by 18% and does so in every fold. So what: boosted trees on well-joined features are the right tool here; tuning adds little.
 
 ![fig11_forecast_vs_actual.png](../figures/fig11_forecast_vs_actual.png)
 
@@ -273,4 +274,4 @@ Hourly forecasts (model trained up to 17 Oct) against actual trips for three con
 
 ![fig12_feature_importance.png](../figures/fig12_feature_importance.png)
 
-Permutation importance: how much the validation RMSE rises when each feature is shuffled; weather features in blue, event features in orange. The zone x weekday x hour profile dominates (its bar is cut off; it already encodes zone and hour, so those rank lower on their own), but the top weather feature ranks #3 and the top event feature #9. So what: the joins add real, if smaller, signal on top of the calendar.
+Permutation importance: how much the validation RMSE rises when each feature is shuffled; weather features in blue, event features in orange. The zone x weekday x hour profile dominates (its bar is cut off; it already encodes zone and hour, so those rank lower on their own), but the top weather feature ranks #2 and the top event feature #12. So what: the joins add real, if smaller, signal on top of the calendar.

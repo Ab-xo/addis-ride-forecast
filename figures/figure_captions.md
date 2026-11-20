@@ -40,7 +40,7 @@ City-wide trips on each holiday relative to the same weekday in nearby weeks. Mo
 
 ## fig10_model_comparison.png
 
-Validation RMSE on 18-31 Oct for the baselines (mean, seasonal naive, moving average), six model families (ARIMA, ridge, random forest and three gradient-boosting variants) and the tuned/final LightGBM (bars, from zero), with the rolling-origin mean ± sd over 5 folds (diamonds). The final model (8.09) beats the best baseline (9.94) by 19% and does so in every fold. So what: boosted trees on well-joined features are the right tool here; tuning adds little.
+Validation RMSE on 18-31 Oct for the baselines (mean, seasonal naive, moving average), six model families (ARIMA, ridge, random forest and three gradient-boosting variants) and the tuned/final LightGBM (bars, from zero), with the rolling-origin mean ± sd over 5 folds (diamonds). The final model (8.12) beats the best baseline (9.94) by 18% and does so in every fold. So what: boosted trees on well-joined features are the right tool here; tuning adds little.
 
 ## fig11_forecast_vs_actual.png
 
@@ -48,4 +48,4 @@ Hourly forecasts (model trained up to 17 Oct) against actual trips for three con
 
 ## fig12_feature_importance.png
 
-Permutation importance: how much the validation RMSE rises when each feature is shuffled; weather features in blue, event features in orange. The zone x weekday x hour profile dominates (its bar is cut off; it already encodes zone and hour, so those rank lower on their own), but the top weather feature ranks #3 and the top event feature #9. So what: the joins add real, if smaller, signal on top of the calendar.
+Permutation importance: how much the validation RMSE rises when each feature is shuffled; weather features in blue, event features in orange. The zone x weekday x hour profile dominates (its bar is cut off; it already encodes zone and hour, so those rank lower on their own), but the top weather feature ranks #2 and the top event feature #12. So what: the joins add real, if smaller, signal on top of the calendar.

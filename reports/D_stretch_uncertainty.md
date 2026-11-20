@@ -12,27 +12,27 @@ Quantiles taken from the 4-17 Oct fold only, coverage measured on 18-31 Oct (dat
 
 | interval   |   target_coverage |   coverage_18_31_oct |   mean_width_trips |
 |:-----------|------------------:|---------------------:|-------------------:|
-| 80%        |             0.800 |                0.798 |             16.541 |
-| 90%        |             0.900 |                0.896 |             21.829 |
+| 80%        |             0.800 |                0.794 |             16.565 |
+| 90%        |             0.900 |                0.892 |             21.623 |
 
-The 80% range caught 80% of actual hours and the 90% range 90%, so the ranges are close to their stated level. The final ranges pool both folds: 80% = forecast -1.42 / +1.65 x sqrt(forecast + 1); 90% = -1.84 / +2.24 x sqrt(forecast + 1). The upper side is wider than the lower side: surges (holiday eves, big events) are under-forecast more often than quiet hours are over-forecast (D7).
+The 80% range caught 79% of actual hours and the 90% range 89%, so the ranges are close to their stated level. The final ranges pool both folds: 80% = forecast -1.42 / +1.66 x sqrt(forecast + 1); 90% = -1.83 / +2.22 x sqrt(forecast + 1). The upper side is wider than the lower side: surges (holiday eves, big events) are under-forecast more often than quiet hours are over-forecast (D7).
 
 ## Forecast by zone, 1-14 Nov 2025
 
 | zone      |   mean_forecast |   peak_forecast |   mean_width_80 |
 |:----------|----------------:|----------------:|----------------:|
-| Merkato   |            46.1 |           138.3 |            18.6 |
-| Bole      |            44.8 |           126.0 |            20.2 |
-| Megenagna |            43.5 |           114.6 |            19.3 |
-| Kazanchis |            37.8 |           155.0 |            17.5 |
-| Piassa    |            32.8 |           113.0 |            16.4 |
-| Lideta    |            32.6 |            94.2 |            16.8 |
-| CMC       |            29.9 |            72.0 |            16.2 |
-| Gerji     |            28.1 |            68.5 |            15.7 |
-| Kolfe     |            26.6 |            71.9 |            15.3 |
-| Sarbet    |            25.2 |            69.3 |            14.9 |
-| Arat Kilo |            23.5 |            83.9 |            14.0 |
-| Ayat      |            20.7 |            52.6 |            13.6 |
+| Merkato   |            45.7 |           139.9 |            18.6 |
+| Bole      |            44.8 |           126.1 |            20.3 |
+| Megenagna |            43.5 |           112.6 |            19.4 |
+| Kazanchis |            37.6 |           160.3 |            17.5 |
+| Piassa    |            32.6 |           113.6 |            16.4 |
+| Lideta    |            32.4 |            95.2 |            16.8 |
+| CMC       |            29.7 |            72.2 |            16.2 |
+| Gerji     |            27.9 |            68.9 |            15.7 |
+| Kolfe     |            26.5 |            68.6 |            15.4 |
+| Sarbet    |            25.1 |            66.1 |            14.9 |
+| Arat Kilo |            23.5 |            83.0 |            14.0 |
+| Ayat      |            20.7 |            51.4 |            13.6 |
 
 ## How operations should use it
 

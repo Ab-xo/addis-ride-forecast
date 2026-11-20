@@ -1,17 +1,17 @@
 # Addis Ababa Ride Demand Forecasting
 
-**Team teamdev · Qiyas AI Hackathon #2 · Qiyas / IADE AI Training Program, Addis Ababa University**
+**Team Addis Ride Dev · Qiyas AI Hackathon #2 · Qiyas / IADE AI Training Program, Addis Ababa University**
 
 Hourly ride-hailing demand forecasts for 12 Addis Ababa zones over 1–14 November 2025, built from trip
 history, hourly weather and a city events calendar.
 
 | | |
 |---|---|
-| **Validation RMSE** | **8.09** trips per zone-hour (18–31 Oct 2025, held out) |
-| **Validation MAE** | **5.60** trips per zone-hour |
-| **Rolling-origin RMSE** | **8.68 ± 0.80** over 5 folds of 14 days |
-| **Best baseline** | 9.94 RMSE (seasonal naive, last 4 weeks) — the final model is 19% better |
-| **Final model** | LightGBM, Poisson objective, 36 forecast-time features |
+| **Validation RMSE** | **8.12** trips per zone-hour (18–31 Oct 2025, held out) |
+| **Validation MAE** | **5.61** trips per zone-hour |
+| **Rolling-origin RMSE** | **8.68 ± 0.79** over 5 folds of 14 days |
+| **Best baseline** | 9.94 RMSE (seasonal naive, last 4 weeks) — the final model is 18% better |
+| **Final model** | LightGBM, Poisson objective, 40 forecast-time features |
 | **Demo** | Runs locally: `python app/app.py`, then open <http://localhost:8000> (see [Demo](#demo)) |
 
 ---
@@ -61,7 +61,7 @@ market, where it falls by 42%. Events move demand in distinct waves: football de
 before kick-off and 2.5× right after the final whistle. The model therefore uses rain with a zone-type
 interaction, and event features split into before, during and after phases.
 
-The final LightGBM model scores an RMSE of 8.09 on a held-out fortnight. That is about 5.6 trips — roughly
+The final LightGBM model scores an RMSE of 8.12 on a held-out fortnight. That is about 5.6 trips — roughly
 four drivers — off per zone-hour, against an average demand of 33 trips.
 
 ---
@@ -81,9 +81,9 @@ results are in [`reports/D_model_evaluation.md`](reports/D_model_evaluation.md).
 | Random forest | 8.79 | 5.97 | 9.60 |
 | Gradient boosting (scikit-learn) | 8.63 | 5.92 | 9.16 |
 | HistGradientBoosting | 8.20 | 5.65 | 8.99 |
-| **LightGBM, tuned + holiday-eve feature (final)** | **8.09** | **5.60** | **8.68** |
+| **LightGBM, tuned + holiday-window features (final)** | **8.12** | **5.61** | **8.68** |
 
-**What each data source adds.** Rolling-origin ablation of the final model type: adding weather lowers
+**What each data source adds.** Rolling-origin ablation of LightGBM on the 35-feature base set: adding weather lowers
 RMSE by 0.88 (−8.9%), adding events by 0.35 (−3.5%), and both together by 1.16 (−11.7%).
 
 **Uncertainty (stretch goal).** Every forecast hour comes with an 80% and a 90% prediction interval. When
@@ -160,8 +160,9 @@ build is committed in `app/web/out/`, so **running the demo needs Python only, n
 **Inputs.** A zone and a date between 1 and 14 November 2025 — nothing else. Zones can be picked from the
 list, from the city map or from the zone leaderboard.
 
-**What the app does.** It looks up the weather forecast and any events for that zone and day from the
-cleaned tables in `app/assets/`, so the user never types in weather or event information. It then shows:
+**What the app does.** It scores the trained model's forecast features and shows the matching weather
+inputs and confirmed events for the selected zone or citywide, so the user never types those values in.
+It then shows:
 
 - a live map of Addis Ababa with all 12 zones as bubbles sized by demand, and an hour slider that can
   play the day forward;
@@ -171,9 +172,10 @@ cleaned tables in `app/assets/`, so the user never types in weather or event inf
 - the drivers needed each hour (forecast trips ÷ 1.3 trips per driver-hour), with a safe staffing level
   at the top of the 80% range and a summary by shift;
 - the expected gross fares (forecast trips × the zone's average fare from the history);
-- a summary of what was looked up, for example *"9–24 °C · No rain forecast · Road race at Meskel
-  Square 06:00–11:00 · Football match at Addis Ababa Stadium 15:00–17:00"*;
+- a summary of the model's weather inputs and confirmed events in the selected zone or citywide;
 - a ranking of all 12 zones for the day, compared with their usual day of the week.
+- a one-page PDF export with the selected zone's forecast, staffing ranges, weather and events;
+- a light/dark theme switch and a zone sidebar with current-hour driver counts.
 
 Dates outside 1–14 November get a friendly message instead of an error. A link such as
 `http://localhost:8000/?zone=Kazanchis&date=2025-11-09` opens the app on that zone and day.
@@ -272,10 +274,10 @@ first so the row count cannot change. Events join as intervals: a venue event's 
 before it starts and closes 3 hours after it ends. Holidays, school breaks and road closures use their
 own dates.
 
-**Features.** 36 features, all known before the forecast fortnight begins:
+**Features.** 40 features, all known before the forecast fortnight begins:
 
-- **Calendar:** hour, weekday, weekend, month, payday window, public holiday, holiday eve, school break,
-  trend.
+- **Calendar:** hour, weekday, weekend, month, payday window, public holiday, school break, trend,
+  holiday eve/period/day-after, and religious/national holiday flags.
 - **Zone:** zone and zone type.
 - **Weather:** temperature, rain, rain over the last 3 hours, rain class, humidity, wind.
 - **Events:** in-window flags by event type, before/during/after phase, attendance, hours to the next
@@ -285,8 +287,8 @@ own dates.
 **Modelling.** Two baselines and six model families are compared on the same chronological split.
 LightGBM with a Poisson objective wins: demand is a count, and its variance grows with its level. The
 hyperparameters come from a 16-trial random search on the four earlier rolling folds, so the main
-validation fortnight never influenced tuning. Error analysis showed that most of the largest misses fell
-on holiday eves, which led to the holiday-eve feature in the final model.
+validation fortnight never influenced tuning. The final model also includes pooled holiday-period and
+holiday-family features alongside the holiday-eve and day-after-public-holiday flags.
 
 ---
 

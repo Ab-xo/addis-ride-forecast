@@ -48,7 +48,6 @@ EVENT_ICONS = {"football_match": "⚽", "concert": "🎵", "conference": "🎤",
 BUNDLE = joblib.load(ASSETS / "final_model.joblib")
 MODEL, FEATURES = BUNDLE["model"], BUNDLE["features"]
 TEST = pd.read_csv(ASSETS / "master_test.csv", parse_dates=["pickup_hour"])
-WEATHER = pd.read_csv(ASSETS / "weather_forecast.csv", parse_dates=["pickup_hour"])
 EVENTS = pd.read_csv(ASSETS / "events.csv", parse_dates=["start", "end"])
 PROFILE = pd.read_csv(ASSETS / "typical_profile.csv")
 FARES = pd.read_csv(ASSETS / "zone_avg_fare.csv").set_index("zone")["avg_fare_birr"]
@@ -84,9 +83,16 @@ def parse_zone(zone: str) -> str:
     return match
 
 
+def event_zones(value: object) -> set[str]:
+    if not isinstance(value, str):
+        return set()
+    return {name.strip().casefold() for name in value.split(";") if name.strip()}
+
+
 def zone_events(zone: str, day: pd.Timestamp) -> pd.DataFrame:
     day_end = day + pd.Timedelta(hours=23, minutes=59)
-    in_zone = EVENTS["zones"].fillna("").str.split(";").apply(lambda zs: zone in zs or "Citywide" in zs)
+    zone_key = zone.strip().casefold()
+    in_zone = EVENTS["zones"].apply(lambda value: bool(event_zones(value) & {zone_key, "citywide"}))
     return EVENTS[in_zone & (EVENTS["end"] >= day) & (EVENTS["start"] <= day_end)].sort_values("start")
 
 
@@ -151,31 +157,56 @@ def forecast(zone: str = Query(...), date: str = Query(...)):
         "rain_mm": round(float(r.rain_mm), 1), "event": bool(sum(getattr(r, c) for c in EVENT_WINDOW_COLS) > 0),
     } for r in d.itertuples()]
 
-    w = WEATHER[WEATHER["pickup_hour"].dt.normalize() == day]
+    w = d[["pickup_hour", "temp_c", "rain_mm"]]
     chips, parts = [], []
-    if not w.empty:
-        t = f"{w.temp_c.min():.0f}–{w.temp_c.max():.0f} °C"
+    temperatures = w["temp_c"].dropna()
+    if not temperatures.empty:
+        t = f"{temperatures.min():.0f}–{temperatures.max():.0f} °C"
         chips.append({"kind": "weather", "icon": "🌡️", "text": t}); parts.append(t)
-        rain = float(w.rain_mm.sum())
-        if rain < 0.1:
-            chips.append({"kind": "weather", "icon": "☀️", "text": "No rain forecast"}); parts.append("no rain")
+    else:
+        t = "Temperature forecast unavailable"
+        chips.append({"kind": "weather", "icon": "🌡️", "text": t}); parts.append(t)
+
+    rain_hours = w["rain_mm"].dropna()
+    if rain_hours.empty:
+        t = "Rain forecast unavailable"
+        chips.append({"kind": "weather", "icon": "🌧️", "text": t}); parts.append(t)
+    else:
+        rain = float(rain_hours.sum())
+        if rain <= 0:
+            t = "0.0 mm rain forecast (dry)"
+            chips.append({"kind": "weather", "icon": "☀️", "text": t}); parts.append(t)
         else:
-            wet = w.loc[w.rain_mm.idxmax()]
+            wet = w.loc[rain_hours.idxmax()]
             t = f"{rain:.1f} mm rain · heaviest {wet.rain_mm:.1f} mm at {wet.pickup_hour:%H:%M}"
             chips.append({"kind": "rain", "icon": "🌧️", "text": t}); parts.append(f"rain {wet.rain_mm:.1f} mm at {wet.pickup_hour:%H:%M}")
+
+        if len(rain_hours) < 24:
+            t = f"Rain data available for {len(rain_hours)}/24 hours"
+            chips.append({"kind": "weather", "icon": "ℹ️", "text": t})
+
     windows = []
     for e in evs.itertuples():
         label = EVENT_LABELS.get(e.event_type, str(e.event_type).replace("_", " "))
         venue = e.venue if isinstance(e.venue, str) and e.venue not in ("(none)", "") else None
-        t = f"{label}{' at ' + venue if venue else ''} · {e.start:%H:%M}–{e.end:%H:%M}"
+        zone_value = e.zones if isinstance(e.zones, str) else ""
+        listed_zones = [name.strip() for name in zone_value.split(";") if name.strip()]
+        zone_keys = {name.casefold() for name in listed_zones}
+        scope = "Citywide: " if "citywide" in zone_keys else ""
+        t = f"{scope}{label}{' at ' + venue if venue else ''} · {e.start:%H:%M}–{e.end:%H:%M}"
         chips.append({"kind": "event", "icon": EVENT_ICONS.get(e.event_type, "📍"), "text": t})
-        parts.append(f"{label.lower()}{' at ' + venue if venue else ''} {e.start:%H:%M}–{e.end:%H:%M}")
+        parts.append(t)
+
+    for e in evs.itertuples():
+        label = EVENT_LABELS.get(e.event_type, str(e.event_type).replace("_", " "))
+        venue = e.venue if isinstance(e.venue, str) and e.venue not in ("(none)", "") else None
         s_h = 0 if e.start < day else int(e.start.hour)
         e_h = 23 if e.end >= day + pd.Timedelta(days=1) else int(e.end.hour)
         windows.append({"label": label, "icon": EVENT_ICONS.get(e.event_type, "📍"), "start_hour": s_h,
                         "end_hour": e_h, "venue": venue})
     if evs.empty:
-        chips.append({"kind": "none", "icon": "📅", "text": "No listed events in or near this zone"})
+        chips.append({"kind": "none", "icon": "📅",
+                      "text": f"No confirmed events listed for {zone} or citywide on {day:%d %b}"})
 
     total, usual = float(d["forecast"].sum()), float(d["typical"].sum())
     peak = max(hours, key=lambda h: h["forecast"])
@@ -207,5 +238,5 @@ else:
 
 if __name__ == "__main__":
     import uvicorn
-    print("\n  Addis Ride Demand Forecast  →  http://localhost:8000\n")
+    print("\n  Addis Ride Demand Forecast  ->  http://localhost:8000\n")
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")

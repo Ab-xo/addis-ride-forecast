@@ -1,7 +1,7 @@
 """Project-wide settings. Change TEAM_NAME here and re-run the notebooks to rename outputs."""
 from pathlib import Path
 
-TEAM_NAME = "teamdev"
+TEAM_NAME = "addis ride dev"
 RANDOM_STATE = 42
 
 # Project root = parent of src/. All paths are relative to it.

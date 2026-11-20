@@ -47,6 +47,22 @@ COLUMNS = {
     "is_holiday_eve": ("events", "1 on the day before a confirmed public holiday",
                        "holiday dates - 1 day (D8)", "eve shopping, travel and Demera crowds (D7)",
                        "yes"),
+    "is_holiday_period": (
+        "events", "1 in the eve, confirmed holiday dates, and following day",
+        "holiday eve union with public-holiday interval and holiday + 1 day",
+        "captures the full observed period around a public holiday", "yes"),
+    "is_day_after_public_holiday": (
+        "events", "1 on the day after a confirmed public holiday",
+        "holiday dates + 1 day, excluding hours covered by a holiday",
+        "captures post-holiday travel and return-to-work patterns", "yes"),
+    "is_religious_holiday": (
+        "events", "1 during a confirmed religious or major observance holiday",
+        "pooled by Ethiopian, Christian and Islamic holiday names",
+        "allows similar religious observances to share a learned effect", "yes"),
+    "is_national_holiday": (
+        "events", "1 during a confirmed national or civic public holiday",
+        "pooled by victory, Labour and national commemoration names",
+        "allows civic holidays to share a learned effect", "yes"),
     "is_school_break": ("events", "1 inside a confirmed school break",
                         "interval join, school_break rows", "fewer school runs", "yes"),
     "trend_days": ("calendar", "Days since 1 Jan 2025", "(pickup_hour - 2025-01-01) / 1 day",
