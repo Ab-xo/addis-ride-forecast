@@ -159,9 +159,9 @@ export default function Page() {
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="dashboard-shell flex h-screen overflow-hidden">
       {/* ════════ SIDEBAR ════════════════════════════════════════════ */}
-      <aside className={`sidebar relative flex h-screen min-h-0 flex-col overflow-x-hidden transition-all duration-300 ease-out ${sidebarOpen ? "w-[280px] overflow-y-auto" : "w-0 overflow-visible"} shrink-0`}>
+      <aside id="dashboard-sidebar" data-open={sidebarOpen} className={`sidebar relative flex h-screen min-h-0 flex-col overflow-x-hidden transition-all duration-300 ease-out ${sidebarOpen ? "w-[280px] overflow-y-auto" : "w-0 overflow-visible"} shrink-0`}>
 
         {/* ── Sidebar body (only rendered when open) ── */}
         {sidebarOpen && (
@@ -187,7 +187,10 @@ export default function Page() {
         <nav className="shrink-0 px-3 py-4 space-y-1">
           <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[.18em] text-slate-600">Dashboard</div>
           {NAV_ITEMS.map(item => (
-            <button key={item.id} onClick={() => setView(item.id)}
+            <button key={item.id} onClick={() => {
+              setView(item.id);
+              if (window.matchMedia("(max-width: 1023px)").matches) setSidebarOpen(false);
+            }}
                     className={`sidebar-nav-item w-full ${view === item.id ? "active" : ""}`}>
               <Icon name={item.icon} className="h-[18px] w-[18px]" />
               <span>{item.label}</span>
@@ -256,12 +259,15 @@ export default function Page() {
           </>
         )}
       </aside>
+      {sidebarOpen && (
+        <button className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} aria-label="Close sidebar" />
+      )}
 
       {/* ════════ MAIN CONTENT ═══════════════════════════════════════ */}
       <main className="dashboard-main flex-1 min-w-0 overflow-y-auto scrollbar-thin bg-ambient">
         {/* ── Top header bar ─────────────────────────────────────── */}
         <header className="dashboard-header sticky top-0 z-30 border-b border-white/5 bg-ink-950/70 backdrop-blur-xl">
-          <div className="flex items-center justify-between px-4 py-2">
+          <div className="dashboard-header-inner flex items-center justify-between px-4 py-2">
             <div className="flex items-center gap-4">
               <div>
                 <h1 className="text-lg font-bold tracking-tight text-white">
@@ -275,17 +281,17 @@ export default function Page() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="dashboard-header-actions flex items-center gap-3">
               {!sidebarOpen && (
-                <button onClick={() => setSidebarOpen(true)} aria-label="Open sidebar"
+                <button onClick={() => setSidebarOpen(true)} aria-label="Open sidebar" aria-controls="dashboard-sidebar"
                         className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10">
                   ☰
                 </button>
               )}
               {meta && (
                 <>
-                  <span className="badge">Team {meta.team}</span>
-                  <span className="badge badge-accent">RMSE {meta.model.rmse}</span>
+                  <span className="header-meta badge">Team {meta.team}</span>
+                  <span className="header-meta badge badge-accent">RMSE {meta.model.rmse}</span>
                 </>
               )}
               <button onClick={toggleTheme} aria-pressed={theme === "light"}
@@ -300,7 +306,7 @@ export default function Page() {
                 <Icon name="download" className="h-4 w-4" />
                 <span className="hidden sm:inline">Export PDF</span>
               </button>
-              <div className="theme-keep-white h-9 w-9 rounded-full bg-gradient-to-br from-accent to-violet grid place-items-center text-xs font-bold text-white shadow-lg">
+              <div className="header-avatar theme-keep-white h-9 w-9 rounded-full bg-gradient-to-br from-accent to-violet grid place-items-center text-xs font-bold text-white shadow-lg">
                 TD
               </div>
             </div>
@@ -328,7 +334,7 @@ export default function Page() {
                 const on = d === date;
                 return (
                   <button key={d} onClick={() => setDate(d)} aria-pressed={on}
-                          className={`flex shrink-0 items-baseline gap-1.5 rounded-xl border px-3 py-1.5 text-[13px] transition ${on ? "theme-keep-white" : ""}
+                          className={`forecast-date flex shrink-0 items-baseline gap-1.5 rounded-xl border px-3 py-1.5 text-[13px] transition ${on ? "theme-keep-white" : ""}
                             ${on ? "glow border-accent bg-accent font-semibold text-white" : "border-white/[.06] bg-ink-850/80 text-slate-300 hover:border-white/15 hover:bg-ink-800"}`}>
                     <span className={`text-[10px] font-semibold uppercase ${on ? "text-white/85" : f.weekend ? "text-accent/80" : "text-slate-500"}`}>{f.dow}</span>
                     <span className="font-bold">{f.num}</span>
@@ -572,7 +578,7 @@ export default function Page() {
           {/* ══════ VIEW: TABLE ═══════════════════════════════════════ */}
           {view === "table" && fc && (
             <section className="glass overflow-hidden animate-in">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+              <div className="data-table-header flex items-center justify-between px-5 py-4 border-b border-white/5">
                 <div>
                   <h2 className="text-lg font-bold tracking-tight text-white">Hourly Data · {zone}</h2>
                   <p className="text-xs text-slate-400">{fmt.day(fc.date).long} — all numbers behind the charts</p>
@@ -583,7 +589,7 @@ export default function Page() {
                   <Icon name="download" className="h-4 w-4" /> Export CSV
                 </a>
               </div>
-              <div className="scrollbar-thin max-h-[600px] overflow-auto">
+              <div className="data-table-scroll scrollbar-thin max-h-[600px] overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-ink-850/95 backdrop-blur text-[10px] uppercase tracking-wider text-slate-500">
                     <tr>{["Hour", "Forecast", "80% Range", "Usual", "Drivers", "Safe", "Fares (birr)", "Temp", "Rain", "Event"].map((c) =>
@@ -651,8 +657,8 @@ function Kpi({ label, value, unit, sub, color, delay = 0 }: {
         <span className="h-2 w-2 rounded-full" style={{ background: color }} />
         {label}
       </div>
-      <div className="mt-2 text-[34px] font-bold leading-none tracking-tight text-white">
-        {value}{unit && <span className="ml-1.5 text-sm font-semibold text-slate-400">{unit}</span>}
+      <div className="kpi-value mt-2 text-[34px] font-bold leading-none tracking-tight text-white">
+        {value}{unit && <span className="kpi-unit ml-1.5 text-sm font-semibold text-slate-400">{unit}</span>}
       </div>
       <div className="mt-1.5 text-[11px] text-slate-400">{sub}</div>
     </div>

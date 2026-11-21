@@ -330,6 +330,73 @@ html[data-theme="light"] .maplibregl-ctrl-group {
   background: rgba(255,255,255,.96) !important;
   border-color: rgba(15,23,42,.16) !important;
 }
+
+.sidebar-backdrop { display: none; }
+.responsive-chart { height: 330px; }
+
+@media (max-width: 1199px) {
+  .dashboard-header .header-meta { display: none; }
+}
+
+@media (max-width: 1023px) {
+  .overview-map-card { min-height: 460px; }
+  .dashboard-shell { height: 100dvh; }
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(280px, 88vw);
+    height: 100dvh;
+    transform: translateX(-102%);
+    box-shadow: 12px 0 36px rgba(0,0,0,.28);
+  }
+  .sidebar[data-open="true"] { transform: translateX(0); }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: block;
+    border: 0;
+    background: rgba(2,6,16,.58);
+    backdrop-filter: blur(3px);
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-header-inner { gap: .5rem; padding: .625rem .75rem; }
+  .dashboard-header-inner > div:first-child { min-width: 0; }
+  .dashboard-header h1 { font-size: 1rem; line-height: 1.2; }
+  .dashboard-header p {
+    overflow: hidden;
+    max-width: 100%;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dashboard-header-actions { gap: .375rem; }
+  .dashboard-content { padding: .875rem .75rem; }
+  .dashboard-content > :not(:first-child) { margin-block-start: 1rem; }
+  .overview-map-card { min-height: 390px; }
+  .kpi-value { font-size: clamp(1.375rem, 7vw, 1.75rem); }
+  .kpi-unit { font-size: .75rem; }
+  .forecast-date { min-height: 44px; }
+  .responsive-chart { height: 270px; }
+  .data-table-header {
+    align-items: flex-start;
+    gap: .625rem;
+    padding: .875rem .75rem;
+  }
+  .data-table-header > div { min-width: 0; }
+  .data-table-header h2 { font-size: 1rem; }
+  .data-table-header p { overflow-wrap: anywhere; }
+  .data-table-header a { flex-shrink: 0; padding: .5rem .625rem; }
+}
+
+@media (max-width: 359px) {
+  .dashboard-header-inner { padding-inline: .625rem; }
+  .dashboard-header-actions { gap: .3rem; }
+  .header-avatar { display: none; }
+}
 html[data-theme="light"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: none; }
 html[data-theme="light"] .maplibregl-ctrl-attrib { background: rgba(255,255,255,.9) !important; color: #475569 !important; }
 html[data-theme="light"] .maplibregl-ctrl-attrib a { color: #334155 !important; }
